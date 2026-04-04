@@ -551,7 +551,7 @@ export class FunnelAttributionService {
     const action: LifecycleAction = {
       id: generateId(),
       actionKey: `lifecycle-${Date.now()}`,
-      type: actionType as LifecycleTriggerType,
+      type: actionType,
       name: `Lifecycle action triggered by ${params.triggerId}`,
       description: `Action triggered for segment: ${params.targetSegment}`,
       sourceTriggerId: params.triggerId,
