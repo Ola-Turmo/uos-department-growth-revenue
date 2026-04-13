@@ -16,6 +16,72 @@ Built as part of the UOS split workspace on top of [Paperclip](https://github.co
 
 - Split repo with package code as the source of truth and a Paperclip plugin scaffold available for worker, manifest, UI, and validation surfaces when the repo needs runtime or operator-facing behavior.
 
+## Phase 1+2 Features
+
+### DoWhy Causal Attribution (`src/attribution/doWhy-attribution.ts`)
+Formal causal inference for marketing channels using the DoWhy framework's backdoor criterion with linear regression estimation. Falls back to correlation analysis when Python runtime is unavailable.
+
+### CausalNex Channel Discovery (`src/attribution/causalnex-discovery.ts`)
+Discovers causal structure between channels using CausalNex NOTEARS structure learning. Input time-series channel spend + outcomes, output directed acyclic graph of causal relationships.
+
+### Bayesian LTV Model (`src/revenue/bayesian-ltv.ts`)
+Survival analysis with Beta-Binomial prior updating for customer lifetime value prediction. More principled than simple cohort arithmetic with explicit confidence intervals and churn probability.
+
+### LLM Hypothesis Generator (`src/experiment/llm-hypothesis-generator.ts`)
+MiniMax LLM-powered hypothesis generator that replaces static templates. Produces creative, data-driven experiment hypotheses from funnel gaps and channel performance data. Falls back to template-based generation on LLM failure.
+
+### Causal Impact Analyzer (`src/attribution/causal-impact.ts`)
+Interrupted time-series analysis for marketing attribution. Estimates true causal revenue effect of a channel by comparing counterfactual (predicted) vs actual outcomes with probability-of-causality scoring.
+
+### Experiment Pipeline Orchestrator (`src/experiment/pipeline-orchestrator.ts`)
+Multi-agent pipeline coordinating: Hypothesis → Design → Run → Monitor → Analyze → Report. Built on SupportOrchestrator patterns with event-driven architecture.
+
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    Growth Revenue Architecture                       │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│  ┌──────────────┐    ┌──────────────┐    ┌──────────────────────┐   │
+│  │ Acquisition  │    │  Lifecycle   │    │   Monetization       │   │
+│  │              │    │              │    │                      │   │
+│  │ • Channels   │───▶│ • Lead Score │───▶│ • LTV Model         │   │
+│  │ • Spend      │    │ • Churn Pred │    │ • Bayesian LTV      │   │
+│  │ • ROI        │    │              │    │                      │   │
+│  └──────┬───────┘    └──────┬───────┘    └──────────┬───────────┘   │
+│         │                   │                       │               │
+│         ▼                   ▼                       ▼               │
+│  ┌─────────────────────────────────────────────────────────────┐    │
+│  │               Attribution Engine                             │    │
+│  │  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────┐ │    │
+│  │  │ DoWhy       │  │ CausalNex   │  │ Causal Impact       │ │    │
+│  │  │ Formal      │  │ Structure   │  │ Interrupted         │ │    │
+│  │  │ Causal      │  │ Discovery   │  │ Time-Series         │ │    │
+│  │  └─────────────┘  └─────────────┘  └─────────────────────┘ │    │
+│  └─────────────────────────────────────────────────────────────┘    │
+│                              │                                       │
+│                              ▼                                       │
+│  ┌─────────────────────────────────────────────────────────────┐    │
+│  │              Experiment Pipeline Orchestrator                │    │
+│  │                                                             │    │
+│  │  Hypothesis → Design → Run → Monitor → Analyze → Report    │    │
+│  │                                                             │    │
+│  │  ┌──────────────────┐   ┌──────────────────────────────┐   │    │
+│  │  │ LLM Hypothesis   │   │ Experiment Designer           │   │    │
+│  │  │ Generator         │   │ Sample Size Calculator        │   │    │
+│  │  └──────────────────┘   └──────────────────────────────┘   │    │
+│  └─────────────────────────────────────────────────────────────┘    │
+│                              │                                       │
+│                              ▼                                       │
+│  ┌─────────────────────────────────────────────────────────────┐    │
+│  │                   Playbook Layer                            │    │
+│  │            (Reusable growth decision memory)                │    │
+│  └─────────────────────────────────────────────────────────────┘    │
+│                                                                      │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
 ## Highest-Value Workflows
 
 - Designing and prioritizing growth experiments.
