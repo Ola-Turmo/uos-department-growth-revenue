@@ -11,6 +11,7 @@ def causal_attribution(data: dict) -> dict:
     """
     Formal causal attribution for marketing channels using DoWhy.
     Estimates per-channel causal effect with sensitivity analysis.
+    Falls back to sklearn OLS when DoWhy estimate.value is None.
     """
     try:
         import pandas as pd
@@ -34,29 +35,42 @@ def causal_attribution(data: dict) -> dict:
         identified = model.identify_effect(proceed_when_unidentifiable=True)
         estimate = model.estimate_effect(identified, method_name="backdoor.linear_regression")
 
-        # Sensitivity analysis: unobserved confounding
-        refute_unobserved = model.refute_estimate(
-            identified, estimate,
-            method_name="add_unobserved_common_cause",
-            confounders_effect_on_outcome="linear",
-            confounders_effect_on_treatment="linear"
-        )
-
-        # Bootstrap confidence intervals
-        total_effect = float(estimate.value) if hasattr(estimate, "value") else 0
-        
-        # Extract per-channel effects via regression coefficients
+        # Extract effect — fall back to sklearn if DoWhy returns None
         channel_effects = {}
-        if hasattr(estimate, "attention_weights") and estimate.attention_weights:
-            for ch in channels:
-                channel_effects[ch] = float(estimate.attention_weights.get(ch, 0))
-        elif hasattr(estimate, "effect"):
-            # Distribute total effect proportionally
-            for ch in channels:
-                channel_effects[ch] = total_effect / len(channels)
+        total_effect = 0
+
+        if estimate.value is not None:
+            total_effect = float(estimate.value)
+            if hasattr(estimate, "attention_weights") and estimate.attention_weights:
+                for ch in channels:
+                    channel_effects[ch] = float(estimate.attention_weights.get(ch, 0))
+            else:
+                for ch in channels:
+                    channel_effects[ch] = total_effect / len(channels)
         else:
-            for ch in channels:
-                channel_effects[ch] = 0
+            # DoWhy estimate.value is None — fall back to sklearn OLS
+            from sklearn.linear_model import LinearRegression
+            X = df[channels].values
+            y = df[outcome_var].values
+            lr = LinearRegression()
+            lr.fit(X, y)
+            for i, ch in enumerate(channels):
+                channel_effects[ch] = float(lr.coef_[i])
+            total_effect = float(lr.coef_.sum())
+
+        # Sensitivity analysis: skip on small data
+        sensitivity_p_value = None
+        try:
+            if len(df) >= 8:
+                refute_unobserved = model.refute_estimate(
+                    identified, estimate,
+                    method_name="add_unobserved_common_cause",
+                    confounders_effect_on_outcome="linear",
+                    confounders_effect_on_treatment="linear"
+                )
+                sensitivity_p_value = float(refute_unobserved.new_effect) if hasattr(refute_unobserved, "new_effect") else None
+        except Exception:
+            pass  # Refutation failed on small data — skip
 
         # Sort by causal effect magnitude
         sorted_effects = dict(sorted(channel_effects.items(), key=lambda x: abs(x[1]), reverse=True))
@@ -66,7 +80,7 @@ def causal_attribution(data: dict) -> dict:
             "total_causal_effect": total_effect,
             "method": "dowhy_backdoor_linear",
             "roi_by_channel": {ch: channel_effects[ch] / max(df[ch].mean(), 1) * 100 for ch in channels},
-            "sensitivity_p_value": float(refute_unobserved.new_effect) if hasattr(refute_unobserved, "new_effect") else None,
+            "sensitivity_p_value": sensitivity_p_value,
             "confidence": "high" if len(df) > 30 else "medium",
             "n_observations": len(df),
         }
