@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { DoWhyAttributionAnalyzer } from "../../src/attribution/doWhy-attribution.js";
 
 describe("DoWhyAttributionAnalyzer", () => {
@@ -14,11 +14,25 @@ describe("DoWhyAttributionAnalyzer", () => {
     expect(result.topChannel).toBeDefined();
   });
 
-  it("falls back on Python unavailable", async () => {
-    const analyzer = new DoWhyAttributionAnalyzer();
+  it("falls back to correlation when Python subprocess fails", async () => {
+    // Mock spawn to simulate Python being unavailable
+    vi.mock("child_process", () => ({
+      spawn: vi.fn(() => ({
+        stdout: { on: (event: string, cb: (d: { toString: () => string }) => void) => { if (event === "data") cb({ toString: () => "" }); } },
+        stderr: { on: (event: string, cb: (d: { toString: () => string }) => void) => { if (event === "data") cb({ toString: () => "module not found" }); } },
+        on: (event: string, cb: (code: number) => void) => { if (event === "close") cb(127); },
+        kill: vi.fn(),
+      })),
+    }));
+
+    // Re-import after mocking
+    const { DoWhyAttributionAnalyzer: MockedAnalyzer } = await import("../../src/attribution/doWhy-attribution.js");
+    const analyzer = new MockedAnalyzer();
     const data = [{ period: "2024-01", x: 10, y: 20, z: 30 }];
     const result = await analyzer.analyze({ channelData: data as any, channels: ["x", "y"], outcomeVar: "z" });
     expect(result.method).toBe("correlation_fallback");
     expect(result.channelEffects).toBeDefined();
+
+    vi.restoreAllMocks();
   });
 });
